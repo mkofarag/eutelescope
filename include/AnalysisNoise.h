@@ -44,6 +44,7 @@ private:
   gear::SiPlanesParameters * _siPlanesParameters;
   gear::SiPlanesLayerLayout * _siPlanesLayerLayout;
   double _energy;
+  int _dim4Sec;
   EVENT::StringVec _chipID;
   EVENT::StringVec _irradiation;
   EVENT::StringVec _dutIDs;

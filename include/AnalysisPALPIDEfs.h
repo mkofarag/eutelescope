@@ -129,6 +129,7 @@ private:
   double ySize;
   int xPixel;
   int yPixel;
+  int _dim4Sec;
   double gRotation[3];
   double xPointing[2];
   double yPointing[2];

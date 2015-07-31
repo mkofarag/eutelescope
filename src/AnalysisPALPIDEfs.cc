@@ -75,12 +75,12 @@ AnalysisPALPIDEfs::AnalysisPALPIDEfs()
   _minTimeStamp(0),
   _siPlanesParameters(0),
   _siPlanesLayerLayout(0),
-  nTracks(4),
-  nTracksPAlpide(4),
-  nFakeWithTrack(4,0),
-  nFakeWithoutTrack(4,0),
-  nFake(4,0),
-  nFakeWithTrackCorrected(4,0),
+  nTracks(5),
+  nTracksPAlpide(5),
+  nFakeWithTrack(5,0),
+  nFakeWithoutTrack(5,0),
+  nFake(5,0),
+  nFakeWithTrackCorrected(5,0),
   nDUThits(0),
   nNoPAlpideHit(0),
   nWrongPAlpideHit(0),
@@ -91,6 +91,7 @@ AnalysisPALPIDEfs::AnalysisPALPIDEfs()
   ySize(0),
   xPixel(0),
   yPixel(0),
+  _dim4Sec(0),
   hotPixelCollectionVec(NULL)
 {
   _description="Analysis of the fitted tracks";
@@ -159,7 +160,8 @@ AnalysisPALPIDEfs::AnalysisPALPIDEfs()
                              _rate, static_cast< string > ( "" ) );
   registerProcessorParameter("MinTimeStamp", "This is minimum timestamp required to consider an event",
                              _minTimeStamp, static_cast<double>( 0 ) );
-
+  registerOptionalParameter("Dim4Sec","Size sector 4 (pixel)",
+                             _dim4Sec, static_cast< int > ( 0 ) );
   _isFirstEvent = true;
 }
 
@@ -232,7 +234,7 @@ void AnalysisPALPIDEfs::init() {
   xPairs = cluster.SymmetryPairs(clusterVec,"x");
   yPairs = cluster.SymmetryPairs(clusterVec,"y");
   symmetryGroups = cluster.sameShape(clusterVec);
-  for (int iSector=0; iSector<4; iSector++)
+  for (int iSector=0; iSector<5; iSector++)
   {
     nTracks[iSector] = 0;
     nTracksPAlpide[iSector] = 0;
@@ -320,9 +322,9 @@ void AnalysisPALPIDEfs::processEvent(LCEvent *evt)
       }
     }
     settingsFile << evt->getRunNumber() << ";" << _energy << ";" << _chipID[layerIndex] << ";" << _irradiation[layerIndex] << ";" << _rate << ";" << evt->getParameters().getFloatVal("BackBiasVoltage") << ";" << evt->getParameters().getIntVal(Form("Ithr_%d",layerIndex)) << ";" << evt->getParameters().getIntVal(Form("Idb_%d",layerIndex)) << ";" << evt->getParameters().getIntVal(Form("Vcasn_%d",layerIndex)) << ";" << evt->getParameters().getIntVal(Form("Vaux_%d",layerIndex)) << ";" << evt->getParameters().getIntVal(Form("Vcasp_%d",layerIndex)) << ";" << evt->getParameters().getIntVal(Form("Vreset_%d",layerIndex)) << ";";
-    for (int iSector=0; iSector<4; iSector++)
+    for (int iSector=0; iSector<5; iSector++)
       settingsFile << evt->getParameters().getFloatVal(Form("Thr_%d_%d",layerIndex,iSector)) << ";" << evt->getParameters().getFloatVal(Form("ThrRMS_%d_%d",layerIndex,iSector)) << ";";
-    for (int iSector=0; iSector<4; iSector++)
+    for (int iSector=0; iSector<5; iSector++)
       settingsFile << evt->getParameters().getFloatVal(Form("Noise_%d_%d",layerIndex,iSector)) << ";" << evt->getParameters().getFloatVal(Form("NoiseRMS_%d_%d",layerIndex,iSector)) << ";";
     settingsFile << evt->getParameters().getIntVal(Form("m_readout_delay_%d",layerIndex)) << ";" << evt->getParameters().getIntVal(Form("m_trigger_delay_%d",layerIndex)) << ";" << evt->getParameters().getIntVal(Form("m_strobe_length_%d",layerIndex)) << ";" << evt->getParameters().getIntVal(Form("m_strobeb_length_%d",layerIndex)) << ";1;";
     _isFirstEvent = false;
@@ -442,6 +444,12 @@ void AnalysisPALPIDEfs::processEvent(LCEvent *evt)
           if (xposfit>xSize/4.*iSector+(iSector==0?0:1)*(2.*xPitch+limit) && xposfit<xSize/4.*(iSector+1)-(iSector==3?0:1)*(2.*xPitch+limit))
           {
             index = iSector;
+            if (iSector == 0)
+            {
+              if (xposfit<_dim4Sec*xPitch-(2.*xPitch+limit)) index = 4;
+              else if (xposfit>(_dim4Sec==0?0:1)*(2.*xPitch+limit)+_dim4Sec*xPitch) index = 0;
+              else index = -1;
+            }
             break;
           }
         }
@@ -824,6 +832,8 @@ void AnalysisPALPIDEfs::processEvent(LCEvent *evt)
               if (xCenter>xPixel/4.*iSector && xCenter<xPixel/4.*(iSector+1))
               {
                 index = iSector;
+                if (iSector == 0)
+                  if (xCenter < _dim4Sec) index = 4;
                 break;
               }
             }
@@ -897,6 +907,8 @@ void AnalysisPALPIDEfs::processEvent(LCEvent *evt)
             if (xCenter>xPixel/4.*iSector && xCenter<xPixel/4.*(iSector+1))
             {
               index = iSector;
+              if (iSector == 0)
+                if (xCenter < _dim4Sec) index = 4;
               break;
             }
           }
@@ -949,14 +961,14 @@ void AnalysisPALPIDEfs::bookHistos()
   largeClusterHistos = new TH2I("largeClusterHisto","Clusters with more than 3 pixels;X (mm);Y (mm)",xPixel,0,xPixel,yPixel,0,yPixel);
   circularClusterHistos = new TH2I("circularClusterHisto","Circular clusters (with missing hits in the middle);X (mm);Y (mm)",xPixel,0,xPixel,yPixel,0,yPixel);
   timeStampHisto = new TH1I("timeStampHisto","Distribution of the time stamp of the events; Time stamp (in 12.5 ns units)",1000,0,50000);
-  nFakeHisto = new TH1F("nFakeHisto","Noise occupancy per sector for all events;Sector;Noise occupancy (/event/pixel)",4,0,4);
-  nFakeWithTrackHisto = new TH1F("nFakeWithTrackHisto","Noise occupancy per sector for events with track;Sector;Noise occupancy (/event/pixel)",4,0,4);
-  nFakeWithTrackCorrectedHisto = new TH1F("nFakeWithTrackCorrectedHisto","Corrected noise occupancy per sector for events with track;Sector;Noise occupancy (/event/pixel)",4,0,4);
-  nFakeWithoutTrackHisto = new TH1F("nFakeWithoutTrackHisto","Noise occupancy per sector for events without track;Sector;Noise occupancy (/event/pixel)",4,0,4);
+  nFakeHisto = new TH1F("nFakeHisto","Noise occupancy per sector for all events;Sector;Noise occupancy (/event/pixel)",5,0,5);
+  nFakeWithTrackHisto = new TH1F("nFakeWithTrackHisto","Noise occupancy per sector for events with track;Sector;Noise occupancy (/event/pixel)",5,0,5);
+  nFakeWithTrackCorrectedHisto = new TH1F("nFakeWithTrackCorrectedHisto","Corrected noise occupancy per sector for events with track;Sector;Noise occupancy (/event/pixel)",5,0,5);
+  nFakeWithoutTrackHisto = new TH1F("nFakeWithoutTrackHisto","Noise occupancy per sector for events without track;Sector;Noise occupancy (/event/pixel)",5,0,5);
   nTrackPerEventHisto = new TH1I("nTrackPerEventHisto","Number of tracks per event;Number of tracks;a.u.",30,0,30);
   nClusterAssociatedToTrackPerEventHisto = new TH1I("nClusterAssociatedToTrackPerEventHisto","Number of clusters associated to tracks per event;Number of clusters;a.u.",30,0,30);
   nClusterPerEventHisto = new TH1I("nClusterPerEventHisto","Number of clusters per event;Number of clusters;a.u.",30,0,30);
-  for (int iSector=0; iSector<4; iSector++)
+  for (int iSector=0; iSector<5; iSector++)
   {
     AIDAProcessor::tree(this)->mkdir(Form("Sector_%d",iSector));
     AIDAProcessor::tree(this)->cd(Form("Sector_%d",iSector));
@@ -1051,7 +1063,7 @@ void AnalysisPALPIDEfs::end()
   for (int i=0; i<xPixel; i++)
     for (int j=0; j<yPixel; j++)
       if (tracksPAlpideHisto->GetBinContent(i,j) > tracksHisto->GetBinContent(i,j)) cerr << "More hits in the pAlpide than number of traks" << endl;
-  for (int iSector=0; iSector<4; iSector++)
+  for (int iSector=0; iSector<5; iSector++)
   {
     efficiencyPixelHisto[iSector]->Divide(tracksPixelHisto[iSector]);
     efficiencyPixel2by2Histo[iSector]->Divide(tracksPixel2by2Histo[iSector]);
@@ -1071,16 +1083,50 @@ void AnalysisPALPIDEfs::end()
       residualXAveragePixel2by2[chi2Max[i]][iSector]->Divide(nResidualXPixel2by2[chi2Max[i]][iSector]);
       residualYAveragePixel2by2[chi2Max[i]][iSector]->Divide(nResidualYPixel2by2[chi2Max[i]][iSector]);
     }
-    nFakeHisto->SetBinContent(iSector+1,(double)nFake[iSector]/_nEvents/(xPixel/4*yPixel));
-    nFakeHisto->SetBinError(iSector+1,sqrt((double)nFake[iSector])/_nEvents/(xPixel/4*yPixel));
-    nFakeWithTrackHisto->SetBinContent(iSector+1,(double)nFakeWithTrack[iSector]/_nEventsWithTrack/(xPixel/4*yPixel));
-    nFakeWithTrackHisto->SetBinError(iSector+1,sqrt((double)nFakeWithTrack[iSector])/_nEventsWithTrack/(xPixel/4*yPixel));
-    nFakeWithTrackCorrectedHisto->SetBinContent(iSector+1,(double)nFakeWithTrackCorrected[iSector]/_nEventsWithTrack/(xPixel/4*yPixel));
-    nFakeWithTrackCorrectedHisto->SetBinError(iSector+1,sqrt((double)nFakeWithTrackCorrected[iSector])/_nEventsWithTrack/(xPixel/4*yPixel));
-    nFakeWithoutTrackHisto->SetBinContent(iSector+1,(double)nFakeWithoutTrack[iSector]/(_nEvents-_nEventsWithTrack)/(xPixel/4*yPixel));
-    nFakeWithoutTrackHisto->SetBinError(iSector+1,sqrt((double)nFakeWithoutTrack[iSector])/(_nEvents-_nEventsWithTrack)/(xPixel/4*yPixel));
-    tracksProjection[iSector] = tracksHisto->ProjectionY(Form("tracksProjection_%d",iSector),xPixel/4*iSector,xPixel/4*(iSector+1));
-    tracksPAlpideProjection[iSector] = tracksPAlpideHisto->ProjectionY(Form("tracksPAlpideProjection_%d",iSector),xPixel/4*iSector,xPixel/4*(iSector+1));
+    if(iSector==4)
+    {
+      if(_dim4Sec!=0)
+      {
+        nFakeHisto->SetBinContent(iSector+1,(double)nFake[iSector]/_nEvents/(_dim4Sec*yPixel));
+        nFakeHisto->SetBinError(iSector+1,sqrt((double)nFake[iSector])/_nEvents/(_dim4Sec*yPixel));
+        nFakeWithTrackHisto->SetBinContent(iSector+1,(double)nFakeWithTrack[iSector]/_nEventsWithTrack/(_dim4Sec*yPixel));
+        nFakeWithTrackHisto->SetBinError(iSector+1,(double)nFakeWithTrack[iSector]/_nEventsWithTrack/(_dim4Sec*yPixel));
+        nFakeWithTrackCorrectedHisto->SetBinContent(iSector+1,(double)nFakeWithTrack[iSector]/_nEventsWithTrack/(_dim4Sec*yPixel));
+        nFakeWithTrackCorrectedHisto->SetBinError(iSector+1,(double)nFakeWithTrack[iSector]/_nEventsWithTrack/(_dim4Sec*yPixel));
+        nFakeWithoutTrackHisto->SetBinContent(iSector+1,(double)nFakeWithTrack[iSector]/_nEventsWithTrack/(_dim4Sec*yPixel));
+        nFakeWithoutTrackHisto->SetBinError(iSector+1,(double)nFakeWithTrack[iSector]/_nEventsWithTrack/(_dim4Sec*yPixel));
+        tracksProjection[iSector] = tracksHisto->ProjectionY(Form("tracksProjection_%d",iSector),0,_dim4Sec);
+        tracksPAlpideProjection[iSector] = tracksPAlpideHisto->ProjectionY(Form("tracksPAlpideProjection_%d",iSector),0,_dim4Sec);
+      }
+      else continue;
+    }
+    else if(iSector==0)
+    {
+      nFakeHisto->SetBinContent(iSector+1,(double)nFake[iSector]/_nEvents/((xPixel/4-_dim4Sec)*yPixel));
+      nFakeHisto->SetBinError(iSector+1,sqrt((double)nFake[iSector])/_nEvents/((xPixel/4-_dim4Sec)*yPixel));
+      nFakeWithTrackHisto->SetBinContent(iSector+1,(double)nFakeWithTrack[iSector]/_nEventsWithTrack/((xPixel/4-_dim4Sec)*yPixel));
+      nFakeWithTrackHisto->SetBinError(iSector+1,(double)nFakeWithTrack[iSector]/_nEventsWithTrack/((xPixel/4-_dim4Sec)*yPixel));
+      nFakeWithTrackCorrectedHisto->SetBinContent(iSector+1,(double)nFakeWithTrack[iSector]/_nEventsWithTrack/((xPixel/4-_dim4Sec)*yPixel));
+      nFakeWithTrackCorrectedHisto->SetBinError(iSector+1,(double)nFakeWithTrack[iSector]/_nEventsWithTrack/((xPixel/4-_dim4Sec)*yPixel));
+      nFakeWithoutTrackHisto->SetBinContent(iSector+1,(double)nFakeWithTrack[iSector]/_nEventsWithTrack/((xPixel/4-_dim4Sec)*yPixel));
+      nFakeWithoutTrackHisto->SetBinError(iSector+1,(double)nFakeWithTrack[iSector]/_nEventsWithTrack/((xPixel/4-_dim4Sec)*yPixel));
+      tracksProjection[iSector] = tracksHisto->ProjectionY(Form("tracksProjection_%d",iSector),xPixel/4-_dim4Sec,xPixel/4*(iSector+1));
+      tracksPAlpideProjection[iSector] = tracksPAlpideHisto->ProjectionY(Form("tracksPAlpideProjection_%d",iSector),xPixel/4-_dim4Sec,xPixel/4*(iSector+1));
+      tracksPAlpideProjection[iSector] = tracksPAlpideHisto->ProjectionY(Form("tracksPAlpideProjection_%d",iSector),xPixel/4-_dim4Sec,xPixel/4*(iSector+1));
+    }
+    else
+    {
+      nFakeHisto->SetBinContent(iSector+1,(double)nFake[iSector]/_nEvents/(xPixel/4*yPixel));
+      nFakeHisto->SetBinError(iSector+1,sqrt((double)nFake[iSector])/_nEvents/(xPixel/4*yPixel));
+      nFakeWithTrackHisto->SetBinContent(iSector+1,(double)nFakeWithTrack[iSector]/_nEventsWithTrack/(xPixel/4*yPixel));
+      nFakeWithTrackHisto->SetBinError(iSector+1,sqrt((double)nFakeWithTrack[iSector])/_nEventsWithTrack/(xPixel/4*yPixel));
+      nFakeWithTrackCorrectedHisto->SetBinContent(iSector+1,(double)nFakeWithTrackCorrected[iSector]/_nEventsWithTrack/(xPixel/4*yPixel));
+      nFakeWithTrackCorrectedHisto->SetBinError(iSector+1,sqrt((double)nFakeWithTrackCorrected[iSector])/_nEventsWithTrack/(xPixel/4*yPixel));
+      nFakeWithoutTrackHisto->SetBinContent(iSector+1,(double)nFakeWithoutTrack[iSector]/(_nEvents-_nEventsWithTrack)/(xPixel/4*yPixel));
+      nFakeWithoutTrackHisto->SetBinError(iSector+1,sqrt((double)nFakeWithoutTrack[iSector])/(_nEvents-_nEventsWithTrack)/(xPixel/4*yPixel));
+      tracksProjection[iSector] = tracksHisto->ProjectionY(Form("tracksProjection_%d",iSector),xPixel/4*iSector,xPixel/4*(iSector+1));
+      tracksPAlpideProjection[iSector] = tracksPAlpideHisto->ProjectionY(Form("tracksPAlpideProjection_%d",iSector),xPixel/4*iSector,xPixel/4*(iSector+1));
+    }
     efficiencyProjection[iSector] = (TH1D*)tracksPAlpideProjection[iSector]->Clone(Form("efficiencyProjection_%d",iSector));
     efficiencyProjection[iSector]->Divide(tracksProjection[iSector]);
     efficiencyProjection[iSector]->SetTitle("Efficiency projection in Y");
@@ -1184,7 +1230,7 @@ void AnalysisPALPIDEfs::end()
   streamlog_out ( MESSAGE4 ) << "For " << nWrongPAlpideHit << " tracks the pALPIDEfs had a hit far from the track" << endl;
   streamlog_out ( MESSAGE4 ) << nDUThits << " hits in the DUT weren't associated to a track" << endl;
   streamlog_out ( MESSAGE4 ) << "Overall efficiency of pALPIDEfs sectors: " << endl;
-  for (int iSector=0; iSector<4; iSector++)
+  for (int iSector=0; iSector<5; iSector++)
   {
     streamlog_out ( MESSAGE4 ) << (double)nTracksPAlpide[iSector]/nTracks[iSector] << "\t" << nTracks[iSector] << "\t" << nTracksPAlpide[iSector] << endl;
     settingsFile << (double)nTracksPAlpide[iSector]/nTracks[iSector] << ";" << nTracks[iSector] << ";" << nTracksPAlpide[iSector] << ";";

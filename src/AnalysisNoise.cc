@@ -26,6 +26,7 @@ AnalysisNoise::AnalysisNoise()
   _siPlanesParameters(0),
   _siPlanesLayerLayout(0),
   _energy(6.0),
+  _dim4Sec(0),
   _chipID(),
   _irradiation(),
   _dutIDs(),
@@ -51,6 +52,8 @@ AnalysisNoise::AnalysisNoise()
                             _dutIDs, _stringVecExample );
     registerOptionalParameter("OutputSettingsFolderName","Folder name where all the settings of each run will be saved",
                             _outputSettingsFolderName, static_cast< string > ( "./" ) );
+    registerOptionalParameter("Dim4Sec","Size Sector 4 (pixel)",
+                            _dim4Sec, static_cast< int > (0 ) );
     _isFirstEvent = true;
   }
 
@@ -67,7 +70,7 @@ void AnalysisNoise::init() {
   _siPlanesLayerLayout = const_cast<SiPlanesLayerLayout*> ( &(_siPlanesParameters->getSiPlanesLayerLayout() ));
 #endif
   _nLayer = _siPlanesLayerLayout->getNLayers();
-  vector<int> tmp(4,0);
+  vector<int> tmp(5,0);
   for (int iLayer=0; iLayer<_nLayer; iLayer++ )
   {
     _xPixel.push_back(_siPlanesLayerLayout->getSensitiveNpixelX(iLayer));
@@ -96,9 +99,9 @@ void AnalysisNoise::processEvent(LCEvent *evt)
     {
       int dutID = atoi(_dutIDs[i].c_str());
       settingsFile[i] << evt->getRunNumber() << ";" << _energy << ";" << _chipID[dutID] << ";" << _irradiation[dutID] << ";" << _rate << ";" << evt->getParameters().getFloatVal("BackBiasVoltage") << ";" << evt->getParameters().getIntVal(Form("Ithr_%d",dutID)) << ";" << evt->getParameters().getIntVal(Form("Idb_%d",dutID)) << ";" << evt->getParameters().getIntVal(Form("Vcasn_%d",dutID)) << ";" << evt->getParameters().getIntVal(Form("Vaux_%d",dutID)) << ";" << evt->getParameters().getIntVal(Form("Vcasp_%d",dutID)) << ";" << evt->getParameters().getIntVal(Form("Vreset_%d",dutID)) << ";";
-      for (int iSector=0; iSector<4; iSector++)
+      for (int iSector=0; iSector<5; iSector++)
         settingsFile[i] << evt->getParameters().getFloatVal(Form("Thr_%d_%d",dutID,iSector)) << ";" << evt->getParameters().getFloatVal(Form("ThrRMS_%d_%d",dutID,iSector)) << ";";
-      for (int iSector=0; iSector<4; iSector++)
+      for (int iSector=0; iSector<5; iSector++)
         settingsFile[i] << evt->getParameters().getFloatVal(Form("Noise_%d_%d",dutID,iSector)) << ";" << evt->getParameters().getFloatVal(Form("NoiseRMS_%d_%d",dutID,iSector)) << ";";
       settingsFile[i] << evt->getParameters().getIntVal(Form("m_readout_delay_%d",dutID)) << ";" << evt->getParameters().getIntVal(Form("m_trigger_delay_%d",dutID)) << ";" << evt->getParameters().getIntVal(Form("m_strobe_length_%d",dutID)) << ";" << evt->getParameters().getIntVal(Form("m_strobeb_length_%d",dutID)) << ";0;";
     }
@@ -127,12 +130,15 @@ void AnalysisNoise::processEvent(LCEvent *evt)
       sparseData->getSparsePixelAt( iPixel, sparsePixel );
       noiseMap[iDetector]->Fill(sparsePixel->getXCoord(),sparsePixel->getYCoord());
       for (int iSector=0; iSector<4; iSector++)
-//      {
-//        cerr << iSector*_xPixel[iDetector]/4 << "\t" <<(iSector+1)*_xPixel[iDetector]/4 << endl;
         if (sparsePixel->getXCoord() >= iSector*_xPixel[iDetector]/4 && sparsePixel->getXCoord() < (iSector+1)*_xPixel[iDetector]/4 )
-          _nFiredPixel[iDetector][iSector]++;
-//      }
-//      cerr << evt->getEventNumber() << "\t" << iDetector << "\t" << sparsePixel->getXCoord() << "\t" << sparsePixel->getYCoord() << endl;
+        {
+          if(iSector != 0) _nFiredPixel[iDetector][iSector]++;
+          else 
+          {
+            if(sparsePixel->getXCoord() < _dim4Sec ) _nFiredPixel[iDetector][4]++;
+            else _nFiredPixel[iDetector][0]++;
+          }
+        }
       delete sparsePixel;
     }
   }
@@ -144,7 +150,7 @@ void AnalysisNoise::bookHistos()
   for (int iLayer=0; iLayer<_nLayer; iLayer++ )
   {
     noiseMap[iLayer] = new TH2I(Form("noiseMap_%d",iLayer),Form("Noise map of layer %d",iLayer),_xPixel[iLayer],0,_xPixel[iLayer],_yPixel[iLayer],0,_yPixel[iLayer]);
-    noiseOccupancy[iLayer] = new TH1F(Form("noiseOccupancy_%d",iLayer),Form("Noise occupancy in layer %d",iLayer),4,0,4);
+    noiseOccupancy[iLayer] = new TH1F(Form("noiseOccupancy_%d",iLayer),Form("Noise occupancy in layer %d",iLayer),5,0,5);
   }
 }
 
@@ -155,12 +161,27 @@ void AnalysisNoise::end()
     settingsFile[i] << _nEvent << ";0;0;0;0;0;0;0;0;0;0;0;0" << endl;
   for (int iLayer=0; iLayer<_nLayer; iLayer++ )
   {
-    for (int iSector=0; iSector<4; iSector++)
+    for (int iSector=0; iSector<5; iSector++)
     {
-//      cerr << "Total number of fired pixels in layer " << iLayer << ", sector " << iSector << " is " << _nFiredPixel[iLayer][iSector] << endl;
-//      cerr << "Noise occupancy in layer " << iLayer << ", sector " << iSector << " is " << (double)_nFiredPixel[iLayer][iSector]/_nEvent/(_xPixel[iLayer]/4*_yPixel[iLayer]) << endl;
-      noiseOccupancy[iLayer]->SetBinContent(iSector+1,(double)_nFiredPixel[iLayer][iSector]/_nEvent/(_xPixel[iLayer]/4*_yPixel[iLayer]));
-      noiseOccupancy[iLayer]->SetBinError(iSector+1,sqrt((double)_nFiredPixel[iLayer][iSector])/_nEvent/(_xPixel[iLayer]/4*_yPixel[iLayer]));
+      if (iSector == 0)
+      {
+        noiseOccupancy[iLayer]->SetBinContent(iSector+1,(double)_nFiredPixel[iLayer][iSector]/_nEvent/((_xPixel[iLayer]/4-_dim4Sec)*_yPixel[iLayer]));
+        noiseOccupancy[iLayer]->SetBinError(iSector+1,sqrt((double)_nFiredPixel[iLayer][iSector])/_nEvent/((_xPixel[iLayer]/4-_dim4Sec)*_yPixel[iLayer]));
+      }
+      else if (iSector == 4)
+      {
+        if(_dim4Sec != 0)
+        {
+          noiseOccupancy[iLayer]->SetBinContent(iSector+1,(double)_nFiredPixel[iLayer][iSector]/_nEvent/(_dim4Sec*_yPixel[iLayer]));
+          noiseOccupancy[iLayer]->SetBinError(iSector+1,sqrt((double)_nFiredPixel[iLayer][iSector])/_nEvent/(_dim4Sec*_yPixel[iLayer]));
+        }
+        else continue;
+      }
+      else
+      {
+        noiseOccupancy[iLayer]->SetBinContent(iSector+1,(double)_nFiredPixel[iLayer][iSector]/_nEvent/(_xPixel[iLayer]/4*_yPixel[iLayer]));
+        noiseOccupancy[iLayer]->SetBinError(iSector+1,sqrt((double)_nFiredPixel[iLayer][iSector])/_nEvent/(_xPixel[iLayer]/4*_yPixel[iLayer]));
+      }
     }
   }
 }
