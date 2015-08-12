@@ -97,12 +97,19 @@ protected:
   std::vector< std::vector<int> > symmetryGroups;
   double zDistance;
   int _nEvents;
+  int _nEventsFake;
   int _nEventsWithTrack;
+  int _nEventsWithEfficiency;
   double _minTimeStamp;
+  bool _showFake;
 private:
   bool _isFirstEvent;
   IntVec nTracks;
+  IntVec nTracksFake;
   IntVec nTracksPAlpide;
+  IntVec nTracksPAlpideFake;
+  IntVec nTracksAssociation;
+  IntVec nTracksPAlpideAssociation;
   std::vector<int> nFakeWithTrack;
   std::vector<int> nFakeWithoutTrack;
   std::vector<int> nFake;
@@ -137,6 +144,8 @@ private:
   TProfile2D* scatteringAngleHisto;
   TProfile2D* chi22DHisto;
   TH2I* tmpHist;
+  TH1I* nHitsPerEventHisto;
+  TH1I* nHitsPerEventHistoTime;
   std::map<float, std::map<int,TH1I*> > residualXPAlpide;
   std::map<float, std::map<int,TH1I*> > residualYPAlpide;
   std::map<float, std::map<int,TH1I*> > residualZPAlpide;
@@ -210,6 +219,15 @@ private:
   TH1I* nTrackPerEventHisto;
   TH1I* nClusterAssociatedToTrackPerEventHisto;
   TH1I* nClusterPerEventHisto;
+  TH1I* nAssociatedhitsHisto;
+  TH1I* nAssociatedtracksHisto;
+  std::vector< std::vector< std::vector<double> > > *posFake;
+  std::vector< std::vector< std::vector<double> > > *posFit;
+  std::vector< std::vector<double> > *posFakeEvent;
+  std::vector< std::vector<double> > *pT;
+  std::vector< std::vector<double> > *pH; 
+  std::vector< std::vector<double> > posFakeTemp;
+  std::vector< int > *nHitsPerEvent; 
 };
 
 #endif
